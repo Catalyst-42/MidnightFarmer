@@ -15,10 +15,10 @@ runs = []
 open("save.py", "a")
 from save import *
 
+timestamp = 0
 state = "begin"
 run = {
-    "begin": None,
-    "end": None,
+    "time": 0,
     "note": ""
 }
 
@@ -53,13 +53,14 @@ def re_enter():
     controller.press(Key.enter)
     controller.release(Key.enter)
 
-def on_press(key):
-    global state, runs, run
-    
-    if state == "run" and key == keyboard.KeyCode.from_char('y'):
-        state = "note"
+def pause():
+    controller.press(Key.esc)
+    controller.release(Key.esc)
 
-    elif state == "note":
+def on_press(key):
+    global timestamp, state, runs, run
+    
+    if state == "note":
         try:
             run["note"] += key.char
 
@@ -68,37 +69,49 @@ def on_press(key):
                 run["note"] = run["note"][:-1]
             if key == keyboard.Key.space:
                 run["note"] += " "
-        
-    if state == "begin" and key == keyboard.KeyCode.from_char("."):
-        state = "run"
+
+    if key == keyboard.Key.shift_r:
+        return False
+
+    elif state == "run" and key == keyboard.KeyCode.from_char('y'):
+        state = "note"
+
+    elif state == "begin" and key == keyboard.KeyCode.from_char("."):
+        timestamp = time()
         run = {
-            "begin": time(),
-            "end": None,
+            "time": 0,
             "note": "",
         }
+
+        state = "run"
 
     elif state == "run" and key == keyboard.KeyCode.from_char(".") or state == "note" and key == keyboard.Key.enter:
-        run["end"] = time()
+        run["time"] += time() - timestamp
         runs.append(run)
 
+        timestamp = time()
         run = {
-            "begin": time(),
-            "end": None,
+            "time": 0,
             "note": "",
         }
 
-        state = "re_entering"
+        state = "action_re_enter"
         re_enter()
         state = "run"
 
-    elif key == keyboard.Key.shift_r:
-        print("exiting")
-        run["end"] = time()
-        runs.append(run)
+    elif state == "run" and key == keyboard.KeyCode.from_char("p"):
+        state = "pause"
 
-        return False
+        run["time"] += time() - timestamp
+        state = "action_pause"
+        pause()
+        state = "pause"
 
-    print(f"key: {key} | state: {state} | run: r{len(runs)}: {run}")
+    elif state == "pause" and key == keyboard.Key.enter:
+        timestamp = time()
+        state = "run"
+
+    print(f"key: {key} | state: {state} | run: {len(runs) + 1}")
 
 with keyboard.Listener(on_press=on_press) as listener:
     listener.join()
