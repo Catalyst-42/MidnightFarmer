@@ -1,6 +1,7 @@
 from pynput import keyboard
 from time import time, sleep
 from json import dumps
+from threading import Thread
 import os
 
 from pynput.keyboard import Key, Controller
@@ -27,21 +28,33 @@ class KEY:
     BEGIN = "."
     BEGIN_ALT = "ю"
 
+    PAUSE = "p"
+    PAUSE_ALT = "з"
+
+    NOTE = "y"
+    NOTE_ALT = "н"
+
+class TIMEOUT:
+    SMALL = 0.05
+    MEDIUM = 0.5
+    BIG = 4.5
+
 def re_enter():
-    sleep(0.5)
+    global state
+    sleep(TIMEOUT.MEDIUM)
 
     controller.press(Key.esc)
     controller.release(Key.esc)
-    sleep(0.01)
+    sleep(TIMEOUT.SMALL)
     
     for _ in range(5):
         controller.press(Key.down)
         controller.release(Key.down)
-        sleep(0.01)
+        sleep(TIMEOUT.SMALL)
 
     controller.press(Key.enter)
     controller.release(Key.enter)
-    sleep(0.01)
+    sleep(TIMEOUT.SMALL)
 
     controller.press(Key.up)
     controller.release(Key.up)
@@ -49,14 +62,16 @@ def re_enter():
     controller.press(Key.enter)
     controller.release(Key.enter)
     
-    sleep(4.5)
+    sleep(TIMEOUT.BIG)
 
     controller.press(Key.enter)
     controller.release(Key.enter)
-    sleep(0.01)
+    sleep(TIMEOUT.SMALL)
 
     controller.press(Key.enter)
     controller.release(Key.enter)
+
+    state = "run"
 
 def pause():
     controller.press(Key.esc)
@@ -77,10 +92,9 @@ def on_press(key):
 
     match state, key_code:
         case _, "shift_r":
-            global free
-            free = True
             return False
 
+        # Main run mode
         case ("begin", KEY.BEGIN | KEY.BEGIN_ALT):
             timestamp = time()
             run = {
@@ -100,26 +114,24 @@ def on_press(key):
                 "note": "",
             }
 
-            state = "action_re_enter"
-            re_enter()
-            state = "run"
+            state = "re_enter"
+            Thread(target=re_enter).start()
+            # state = "run"
 
         # Pause mode
-        case ("run", "p" | "з"):
+        case ("run", KEY.PAUSE | KEY.PAUSE_ALT):
             state = "pause"
 
             run["time"] += time() - timestamp
-            state = "action_pause"
             pause()
             state = "pause"
 
-        case ("pause", "p" | "з"):
-            pause()
+        case ("pause", KEY.PAUSE | KEY.PAUSE_ALT):
+            Thread(target=pause).start()
             timestamp = time()
-            state = "run"
 
         # Note mode
-        case ("run", "y" | "н"):
+        case ("run", KEY.NOTE | KEY.NOTE_ALT):
             state = "note"
         
         case "note", "esc":
@@ -140,18 +152,15 @@ def on_press(key):
 
     print(f"key: {key} | state: {state} | run: {len(runs) + 1} {run['note']}")
 
-listener = keyboard.Listener(on_press=on_press)
-listener.start()
-
-free = False
-while not free:
-    pass
+with keyboard.Listener(on_press=on_press) as listener:
+    listener.join()
 
 with open("save.py", "w", encoding="utf-8") as file:
     file.write(f"runs = ")
-    file.write(dumps(runs, indent=4))
+    file.write(dumps(runs, indent=4, ensure_ascii=False))
 
-print("Loot")
-for run in runs[session:]:
-    if run["note"]:
-        print(run["note"])
+if any([run["note"] for run in runs[session:]]):
+    print("\nLoot:")
+    for run in runs[session:]:
+        if run["note"]:
+            print(run["note"])
