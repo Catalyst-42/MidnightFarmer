@@ -1,65 +1,88 @@
-from time import time
-import datetime
-import curses
+from pynput import keyboard
+from time import time, sleep
+import os
 
-timestamp = time()
+from pynput.keyboard import Key, Controller
+keyboard = Controller()
+
+s = 1
+m = 60*s
+h = 60*m
+d = 24*h
+
+state = "begin"
 runs = []
+run = {
+    "begin": None,
+    "end": None,
+    "note": ""
+}
 
-s = curses.initscr()
-sh, sw = s.getmaxyx()
-curses.start_color()
-curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
-curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
-curses.curs_set(0)
+def re_enter():
+    keyboard.press(Key.esc)
+    keyboard.release(Key.esc)
+    
+    for _ in range(6):
+        keyboard.press(Key.down)
+        keyboard.release(Key.down)
 
-w = curses.newwin(sh, sw, 0, 0)
-w.keypad(True); w.timeout(1000)
+    keyboard.press(Key.enter)
+    keyboard.release(Key.enter)
 
-while True:
-    w.clear()
+    sleep(3)
 
-    delta = round((time() - timestamp))
-    w.addstr(f"{len(runs) + 1} 0{datetime.timedelta(seconds=delta)} ")
-    if len(runs): w.addstr(f"0{datetime.timedelta(seconds=round(sum(runs) / len(runs)))}", curses.color_pair(1))
-    else: w.addstr(f"--:--:--")
+    keyboard.press(Key.enter)
+    keyboard.release(Key.enter)
 
-    for run in runs[:-sh:-1]:
-        w.addstr(f"\n{(len(str(len(runs) + 1))) * ' '} 0{datetime.timedelta(seconds=run)}")
+def on_press(key):
+    global state, runs, run
 
-    try: key = w.get_wch()
-    except: key = ''
+    if key == keyboard.Key.shift_r:
+        return False
+    
+    if state == "run" and key == keyboard.KeyCode.from_char('n'):
+        state = "note"
+    
+    elif state == "note":
+        try:
+            run["note"] += key.char
+        except AttributeError:
+            if key in (keyboard.Key.backspace, keyboard.Key.delete):
+                run["note"] = run["note"][:-1]
+            if key == keyboard.Key.space:
+                run["note"] += " "
 
-    if  key == '\n': # enter
-        delta = round((time() - timestamp))
-        runs.append(delta)
-        timestamp = time()
+    if key == keyboard.Key.enter:
+        match state:
+            case "begin":
+                state = "run"
+                run = {
+                    "begin": time(),
+                    "end": None,
+                    "note": "",
+                }
 
-    elif key == 'p': # pause
-        w.timeout(-1)
-        w.clear()
+            case "run" | "note":
+                run["end"] = time()
+                runs.append(run)
 
-        w.addstr(f"{len(runs) + 1}  paused  ")
-        if len(runs): w.addstr(f"0{datetime.timedelta(seconds=round(sum(runs) / len(runs)))}", curses.color_pair(1))
+                run = {
+                    "begin": time(),
+                    "end": None,
+                    "note": "",
+                }
 
-        for run in runs[:-sh:-1]:
-            w.addstr(f"\n{(len(str(len(runs) + 1))) * ' '} 0{datetime.timedelta(seconds=run)}")
+                re_enter()
 
-        w.getch()
-        timestamp = time()
-        w.timeout(1000)
+    os.system("clear")
+    print(f"key: {key} | state: {state} | run: {run}")
+    print(f"now on {len(runs)} run")
+                
+with keyboard.Listener(on_press=on_press) as listener:
+    listener.join()
 
-    elif key == '\x1b': # escape
-        curses.endwin()
-        if len(runs): 
-            print(f"Среднее за {len(runs)}: 0{datetime.timedelta(seconds=round(sum(runs) / len(runs)))}")
-        break
+listener = keyboard.Listener(on_press=on_press)
+listener.start()
 
-# save data to file
-with open("save.txt", 'a') as file:
-    for run in runs: file.write(f"{run}\n")
-
-# get data for all time
-with open("save.txt", 'r') as file:
-    runs = [int(run) for run in file.readlines()]
-    if len(runs): 
-        print(f"Среднее за {len(runs)}: 0{datetime.timedelta(seconds=round(sum(runs) / len(runs)))}")
+print("Ended, log:")
+print(runs)
