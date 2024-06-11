@@ -3,7 +3,7 @@ from time import time, sleep
 import os
 
 from pynput.keyboard import Key, Controller
-keyboard = Controller()
+controller = Controller()
 
 s = 1
 m = 60*s
@@ -19,28 +19,42 @@ run = {
 }
 
 def re_enter():
-    keyboard.press(Key.esc)
-    keyboard.release(Key.esc)
+    controller.press(Key.esc)
+    controller.release(Key.esc)
+    sleep(0.05)
     
-    for _ in range(6):
-        keyboard.press(Key.down)
-        keyboard.release(Key.down)
+    for _ in range(5):
+        controller.press(Key.down)
+        controller.release(Key.down)
+        sleep(0.05)
 
-    keyboard.press(Key.enter)
-    keyboard.release(Key.enter)
 
-    sleep(3)
+    controller.press(Key.enter)
+    controller.release(Key.enter)
+    sleep(0.05)
 
-    keyboard.press(Key.enter)
-    keyboard.release(Key.enter)
+    controller.press(Key.up)
+    controller.release(Key.up)
+
+    controller.press(Key.enter)
+    controller.release(Key.enter)
+    
+    sleep(6)
+
+    controller.press(Key.enter)
+    controller.release(Key.enter)
+    sleep(0.05)
+
+    controller.press(Key.enter)
+    controller.release(Key.enter)
 
 def on_press(key):
     global state, runs, run
 
     if key == keyboard.Key.shift_r:
-        return False
+        state = "exit"
     
-    if state == "run" and key == keyboard.KeyCode.from_char('n'):
+    if state == "run" and key == keyboard.KeyCode.from_char('y'):
         state = "note"
     
     elif state == "note":
@@ -52,7 +66,7 @@ def on_press(key):
             if key == keyboard.Key.space:
                 run["note"] += " "
 
-    if key == keyboard.Key.enter:
+    if key == keyboard.KeyCode.from_char(".") or key == keyboard.Key.enter and state == "note":
         match state:
             case "begin":
                 state = "run"
@@ -72,7 +86,15 @@ def on_press(key):
                     "note": "",
                 }
 
+                state = "re_entering"
                 re_enter()
+                state = "run"
+
+            case "exit":
+                run["end"] = time()
+                runs.append(run)
+
+                return False
 
     os.system("clear")
     print(f"key: {key} | state: {state} | run: {run}")
