@@ -1,7 +1,7 @@
 from pynput import keyboard
 from time import time, sleep
-import os
 from json import dumps
+import os
 
 from pynput.keyboard import Key, Controller
 controller = Controller()
@@ -13,7 +13,8 @@ d = 24*h
 
 runs = []
 open("save.py", "a")
-from save import *
+from first_save import *
+session = len(runs)
 
 timestamp = 0
 state = "begin"
@@ -22,21 +23,25 @@ run = {
     "note": ""
 }
 
+class KEY:
+    BEGIN = "."
+    BEGIN_ALT = "ю"
+
 def re_enter():
-    sleep(1)
+    sleep(0.5)
 
     controller.press(Key.esc)
     controller.release(Key.esc)
-    sleep(0.05)
+    sleep(0.01)
     
     for _ in range(5):
         controller.press(Key.down)
         controller.release(Key.down)
-        sleep(0.05)
+        sleep(0.01)
 
     controller.press(Key.enter)
     controller.release(Key.enter)
-    sleep(0.05)
+    sleep(0.01)
 
     controller.press(Key.up)
     controller.release(Key.up)
@@ -44,11 +49,11 @@ def re_enter():
     controller.press(Key.enter)
     controller.release(Key.enter)
     
-    sleep(6)
+    sleep(4.5)
 
     controller.press(Key.enter)
     controller.release(Key.enter)
-    sleep(0.05)
+    sleep(0.01)
 
     controller.press(Key.enter)
     controller.release(Key.enter)
@@ -59,66 +64,94 @@ def pause():
 
 def on_press(key):
     global timestamp, state, runs, run
-    
-    if state == "note":
-        try:
-            run["note"] += key.char
 
-        except AttributeError:
-            if key in (keyboard.Key.backspace, keyboard.Key.delete):
-                run["note"] = run["note"][:-1]
-            if key == keyboard.Key.space:
-                run["note"] += " "
+    # TODO:
+    # Выбор фала сохранения
+    # Более информативный stat мод, подумать
+    # Вынос всех настроек
 
-    if key == keyboard.Key.shift_r:
-        return False
+    if hasattr(key, 'char'):
+        key_code = key.char
+    else:
+        key_code = key.name
 
-    elif state == "run" and key == keyboard.KeyCode.from_char('y'):
-        state = "note"
+    match state, key_code:
+        case _, "shift_r":
+            global free
+            free = True
+            return False
 
-    elif state == "begin" and key == keyboard.KeyCode.from_char("."):
-        timestamp = time()
-        run = {
-            "time": 0,
-            "note": "",
-        }
+        case ("begin", KEY.BEGIN | KEY.BEGIN_ALT):
+            timestamp = time()
+            run = {
+                "time": 0,
+                "note": "",
+            }
 
-        state = "run"
+            state = "run"
 
-    elif state == "run" and key == keyboard.KeyCode.from_char(".") or state == "note" and key == keyboard.Key.enter:
-        run["time"] += time() - timestamp
-        runs.append(run)
+        case ("run", KEY.BEGIN | KEY.BEGIN_ALT) | ("note", "enter"):
+            run["time"] += time() - timestamp
+            runs.append(run)
 
-        timestamp = time()
-        run = {
-            "time": 0,
-            "note": "",
-        }
+            timestamp = time()
+            run = {
+                "time": 0,
+                "note": "",
+            }
 
-        state = "action_re_enter"
-        re_enter()
-        state = "run"
+            state = "action_re_enter"
+            re_enter()
+            state = "run"
 
-    elif state == "run" and key == keyboard.KeyCode.from_char("p"):
-        state = "pause"
+        # Pause mode
+        case ("run", "p" | "з"):
+            state = "pause"
 
-        run["time"] += time() - timestamp
-        state = "action_pause"
-        pause()
-        state = "pause"
+            run["time"] += time() - timestamp
+            state = "action_pause"
+            pause()
+            state = "pause"
 
-    elif state == "pause" and key == keyboard.Key.enter:
-        timestamp = time()
-        state = "run"
+        case ("pause", "p" | "з"):
+            pause()
+            timestamp = time()
+            state = "run"
 
-    print(f"key: {key} | state: {state} | run: {len(runs) + 1}")
+        # Note mode
+        case ("run", "y" | "н"):
+            state = "note"
+        
+        case "note", "esc":
+            timestamp = time()
+            run["note"] = ""
+            pause()
+            state = "run"
 
-with keyboard.Listener(on_press=on_press) as listener:
-    listener.join()
+        case "note", "backspace":
+            run["note"] = run["note"][:-1]
 
-print("Ended, log:")
-print(runs)
+        case "note", "space":
+            run["note"] += " "
+
+        case "note", _:
+            if hasattr(key, 'char'):
+                run["note"] += key.char
+
+    print(f"key: {key} | state: {state} | run: {len(runs) + 1} {run['note']}")
+
+listener = keyboard.Listener(on_press=on_press)
+listener.start()
+
+free = False
+while not free:
+    pass
 
 with open("save.py", "w", encoding="utf-8") as file:
     file.write(f"runs = ")
     file.write(dumps(runs, indent=4))
+
+print("Loot")
+for run in runs[session:]:
+    if run["note"]:
+        print(run["note"])
