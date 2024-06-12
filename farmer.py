@@ -1,11 +1,9 @@
-from pynput import keyboard
 from time import time, sleep
 from json import dumps
 from threading import Thread
-import os
 
-from pynput.keyboard import Key, Controller
-controller = Controller()
+from pynput.keyboard import Controller, Listener, Key
+keyboard = Controller()
 
 s = 1
 m = 60*s
@@ -43,39 +41,40 @@ def re_enter():
     global state
     sleep(TIMEOUT.MEDIUM)
 
-    controller.press(Key.esc)
-    controller.release(Key.esc)
+    keyboard.tap(Key.esc)
     sleep(TIMEOUT.SMALL)
     
     for _ in range(5):
-        controller.press(Key.down)
-        controller.release(Key.down)
+        keyboard.tap(Key.down)
         sleep(TIMEOUT.SMALL)
 
-    controller.press(Key.enter)
-    controller.release(Key.enter)
+    keyboard.tap(Key.enter)
     sleep(TIMEOUT.SMALL)
 
-    controller.press(Key.up)
-    controller.release(Key.up)
-
-    controller.press(Key.enter)
-    controller.release(Key.enter)
+    keyboard.tap(Key.up)
+    keyboard.tap(Key.enter)
     
     sleep(TIMEOUT.BIG)
 
-    controller.press(Key.enter)
-    controller.release(Key.enter)
+    keyboard.tap(Key.enter)
     sleep(TIMEOUT.SMALL)
 
-    controller.press(Key.enter)
-    controller.release(Key.enter)
+    keyboard.tap(Key.enter)
 
     state = "run"
 
 def pause():
-    controller.press(Key.esc)
-    controller.release(Key.esc)
+    keyboard.tap(Key.esc)
+
+def shortcut(function, begin_state, final_state):
+    def inner(function, begin_state, final_state):
+        global state
+
+        state = begin_state
+        function()
+        state = final_state
+
+    Thread(target=inner, args=(function, begin_state, final_state)).start()
 
 def on_press(key):
     global timestamp, state, runs, run
@@ -114,21 +113,16 @@ def on_press(key):
                 "note": "",
             }
 
-            state = "re_enter"
-            Thread(target=re_enter).start()
-            # state = "run"
+            shortcut(re_enter, "re_enter", "run")
 
         # Pause mode
         case ("run", KEY.PAUSE | KEY.PAUSE_ALT):
-            state = "pause"
-
             run["time"] += time() - timestamp
-            pause()
-            state = "pause"
+            shortcut(pause, "pausing", "pause")
 
         case ("pause", KEY.PAUSE | KEY.PAUSE_ALT):
-            Thread(target=pause).start()
             timestamp = time()
+            shortcut(pause, "unpausing", "run")
 
         # Note mode
         case ("run", KEY.NOTE | KEY.NOTE_ALT):
@@ -137,7 +131,6 @@ def on_press(key):
         case "note", "esc":
             timestamp = time()
             run["note"] = ""
-            pause()
             state = "run"
 
         case "note", "backspace":
@@ -150,17 +143,30 @@ def on_press(key):
             if hasattr(key, 'char'):
                 run["note"] += key.char
 
-    print(f"key: {key} | state: {state} | run: {len(runs) + 1} {run['note']}")
+    print(f"key: {key}".ljust(20), end=" | ")
+    print(f"state: {state}".ljust(20), end=" | ")
+    print(f"run: {len(runs) + 1} {run['note']}".ljust(20))
 
-with keyboard.Listener(on_press=on_press) as listener:
+with Listener(on_press=on_press) as listener:
     listener.join()
 
 with open("save.py", "w", encoding="utf-8") as file:
     file.write(f"runs = ")
     file.write(dumps(runs, indent=4, ensure_ascii=False))
 
+# Stats by session
+print("\nSession")
+print(f"Runs: {len(runs) - session}")
+print(f"Average time: {round(sum([run['time'] for run in runs[session:]]) / len(runs[session:]))}s")
+
+# Loot
 if any([run["note"] for run in runs[session:]]):
-    print("\nLoot:")
+    print("Loot:")
     for run in runs[session:]:
         if run["note"]:
             print(run["note"])
+
+# Global stats
+print("\nGlobal")
+print(f"Runs: {len(runs)}")
+print(f"Average time: {round(sum([run['time'] for run in runs]) / len(runs))}s")
