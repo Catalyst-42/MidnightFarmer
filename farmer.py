@@ -35,12 +35,10 @@ class KEY:
 class TIMEOUT:
     SMALL = 0.05
     MEDIUM = 0.5
-    BIG = 4.5
+    BIG = 5
 
+# Shortcut actions
 def re_enter():
-    global state
-    sleep(TIMEOUT.MEDIUM)
-
     keyboard.tap(Key.esc)
     sleep(TIMEOUT.SMALL)
     
@@ -61,27 +59,26 @@ def re_enter():
 
     keyboard.tap(Key.enter)
 
-    state = "run"
-
 def pause():
     keyboard.tap(Key.esc)
 
-def shortcut(function, begin_state, final_state):
-    def inner(function, begin_state, final_state):
+def shortcut(function, begin_state, final_state, start_delay=0):
+    def inner(function, begin_state, final_state, start_delay):
         global state
 
         state = begin_state
+        sleep(start_delay)
         function()
         state = final_state
-
-    Thread(target=inner, args=(function, begin_state, final_state)).start()
+    
+    # Execute shortcut without delays in main script
+    Thread(target=inner, args=(function, begin_state, final_state, start_delay)).start()
 
 def on_press(key):
     global timestamp, state, runs, run
 
     # TODO:
     # Выбор фала сохранения
-    # Более информативный stat мод, подумать
     # Вынос всех настроек
 
     if hasattr(key, 'char'):
@@ -112,15 +109,19 @@ def on_press(key):
                 "time": 0,
                 "note": "",
             }
-
-            shortcut(re_enter, "re_enter", "run")
+            
+            shortcut(re_enter, "re_enter", "run", TIMEOUT.MEDIUM if state == "note" else TIMEOUT.SMALL)
 
         # Pause mode
+        case ("run", "esc"):
+            run["time"] += time() - timestamp
+            state = "pause"
+
         case ("run", KEY.PAUSE | KEY.PAUSE_ALT):
             run["time"] += time() - timestamp
             shortcut(pause, "pausing", "pause")
 
-        case ("pause", KEY.PAUSE | KEY.PAUSE_ALT):
+        case ("pause", KEY.PAUSE | KEY.PAUSE_ALT | "enter" | "esc" | "space"):
             timestamp = time()
             shortcut(pause, "unpausing", "run")
 
@@ -155,16 +156,17 @@ with open("save.py", "w", encoding="utf-8") as file:
     file.write(dumps(runs, indent=4, ensure_ascii=False))
 
 # Stats by session
-print("\nSession")
-print(f"Runs: {len(runs) - session}")
-print(f"Average time: {round(sum([run['time'] for run in runs[session:]]) / len(runs[session:]))}s")
+if len(runs[session:]):
+    print("\nSession")
+    print(f"Runs: {len(runs) - session}")
+    print(f"Average time: {round(sum([run['time'] for run in runs[session:]]) / len(runs[session:]))}s")
 
-# Loot
-if any([run["note"] for run in runs[session:]]):
-    print("Loot:")
-    for run in runs[session:]:
-        if run["note"]:
-            print(run["note"])
+    # Loot
+    if any([run["note"] for run in runs[session:]]) :
+        print("\nLoot:")
+        for run in runs[session:]:
+            if run["note"]:
+                print(run["note"])
 
 # Global stats
 print("\nGlobal")
