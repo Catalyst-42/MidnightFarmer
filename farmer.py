@@ -172,7 +172,7 @@ if len(session):
 
     # Loot
     if any([run["note"] for run in session]) :
-        print("\nLoot:")
+        print("\nLoot")
         for run in session:
             if run["note"]:
                 print(run["note"])
