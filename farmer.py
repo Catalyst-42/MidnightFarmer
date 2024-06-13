@@ -1,41 +1,39 @@
 from time import time, sleep
-from json import dumps
 from threading import Thread
+import tomllib
 
 from pynput.keyboard import Controller, Listener, Key
 keyboard = Controller()
 
-s = 1
-m = 60*s
-h = 60*m
-d = 24*h
+# Setup
+with open("settings.toml", "rb") as f:
+    settings = tomllib.load(f)
 
-runs = []
-open("save.py", "a")
-from first_save import *
-session = len(runs)
+session = []
+tag = settings["DEFAULT_TAG"]
 
 timestamp = 0
 state = "begin"
+
 run = {
     "time": 0,
     "note": ""
 }
 
 class KEY:
-    BEGIN = "."
-    BEGIN_ALT = "ю"
+    BEGIN = settings["KEY"]["BEGIN"]
+    BEGIN_ALT = settings["KEY"]["BEGIN_ALT"]
 
-    PAUSE = "p"
-    PAUSE_ALT = "з"
+    PAUSE = settings["KEY"]["PAUSE"]
+    PAUSE_ALT = settings["KEY"]["PAUSE_ALT"]
 
-    NOTE = "y"
-    NOTE_ALT = "н"
+    NOTE = settings["KEY"]["NOTE"]
+    NOTE_ALT = settings["KEY"]["NOTE_ALT"]
 
 class TIMEOUT:
-    SMALL = 0.05
-    MEDIUM = 0.5
-    BIG = 5
+    SMALL = settings["TIMEOUT"]["SMALL"]
+    MEDIUM = settings["TIMEOUT"]["MEDIUM"]
+    BIG = settings["TIMEOUT"]["BIG"]
 
 # Shortcut actions
 def re_enter():
@@ -72,14 +70,18 @@ def shortcut(function, begin_state, final_state, start_delay=0):
         state = final_state
     
     # Execute shortcut without delays in main script
-    Thread(target=inner, args=(function, begin_state, final_state, start_delay)).start()
+    Thread(
+        target=inner,
+        args=(
+            function,
+            begin_state,
+            final_state,
+            start_delay
+        )
+    ).start()
 
 def on_press(key):
-    global timestamp, state, runs, run
-
-    # TODO:
-    # Выбор фала сохранения
-    # Вынос всех настроек
+    global timestamp, state, session, run
 
     if hasattr(key, 'char'):
         key_code = key.char
@@ -102,7 +104,7 @@ def on_press(key):
 
         case ("run", KEY.BEGIN | KEY.BEGIN_ALT) | ("note", "enter"):
             run["time"] += time() - timestamp
-            runs.append(run)
+            session.append(run)
 
             timestamp = time()
             run = {
@@ -146,29 +148,37 @@ def on_press(key):
 
     print(f"key: {key}".ljust(20), end=" | ")
     print(f"state: {state}".ljust(20), end=" | ")
-    print(f"run: {len(runs) + 1} {run['note']}".ljust(20))
+    print(f"run: {len(session) + 1} {run['note']}".ljust(20))
 
 with Listener(on_press=on_press) as listener:
     listener.join()
 
-with open("save.py", "w", encoding="utf-8") as file:
-    file.write(f"runs = ")
-    file.write(dumps(runs, indent=4, ensure_ascii=False))
+# Extend save
+with open("save.toml", "a+") as f:
+    for run in session:
+        f.write(f"[[{tag}]]\n")
+        f.write(f"time = {run['time']}\n")
+        f.write(f'note = "{run['note']}"\n\n')
+
+# Load all save
+with open("save.toml", "rb") as f:
+    save = tomllib.load(f)
 
 # Stats by session
-if len(runs[session:]):
+if len(session):
     print("\nSession")
-    print(f"Runs: {len(runs) - session}")
-    print(f"Average time: {round(sum([run['time'] for run in runs[session:]]) / len(runs[session:]))}s")
+    print(f"Runs: {len(session)}")
+    print(f"Average time: {round(sum([run['time'] for run in session]) / len(session))}s")
 
     # Loot
-    if any([run["note"] for run in runs[session:]]) :
+    if any([run["note"] for run in session]) :
         print("\nLoot:")
-        for run in runs[session:]:
+        for run in session:
             if run["note"]:
                 print(run["note"])
 
 # Global stats
-print("\nGlobal")
-print(f"Runs: {len(runs)}")
-print(f"Average time: {round(sum([run['time'] for run in runs]) / len(runs))}s")
+if tag in save:
+    print(f"\nGlobal")
+    print(f"Runs: {len(save[tag])}")
+    print(f"Average time: {round(sum([run['time'] for run in save[tag]]) / len(save[tag]))}s")

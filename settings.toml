@@ -1,0 +1,16 @@
+DEFAULT_TAG = "Debug"
+
+[TIMEOUT]
+SMALL = 0.05
+MEDIUM = 0.5
+BIG = 5
+
+[KEY]
+BEGIN = "."
+BEGIN_ALT = "ю"
+
+PAUSE = "p"
+PAUSE_ALT = "з"
+
+NOTE = "y"
+NOTE_ALT = "н"
