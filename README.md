@@ -28,3 +28,7 @@ pip install pynput
 6. Press `r_shift` to done script and watch statistics for this session and in general (last started run will not be saved).
 
 All information about runs stored in `save.toml` file. You can change keybinding in `settings.toml`, and also you can change delays between pressing keys, if script does it too fast. Also you can change tag of item, that you are farming. The script will display statistics only for the tag under which the race is run.
+
+## Usage example
+
+![Testing](img/MidnightFarmer%20-%20Testing.mov)
