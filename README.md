@@ -31,4 +31,7 @@ All information about runs stored in `save.toml` file. You can change keybinding
 
 ## Usage example
 
-![Testing](img/MidnightFarmer%20-%20Testing.mov)
+
+https://github.com/user-attachments/assets/ae734152-63cc-49e0-b890-ec1ec2515420
+
+
